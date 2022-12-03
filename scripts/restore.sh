@@ -120,7 +120,31 @@ tmux_default_command() {
 }
 
 pane_creation_command() {
-	echo "cat '$(pane_contents_file "restore" "${1}:${2}.${3}")'; exec $(tmux_default_command)"
+	local file=$(pane_contents_file "restore" "${1}:${2}.${3}")
+	local enable_output=0
+	local output=''
+	local last_line=''
+	IFS=''
+
+	while read line; do
+		if ! [[ "$line" =~ ^[[:space:]]*$ ]]; then
+			enable_output=1
+		fi
+		if (( $enable_output == 1 )); then
+			output+="$line\n"
+		fi
+		last_line=$line
+	done < $file
+
+	# If the last line is an entirely empty prompt, remove the last two lines
+	if [[ "$last_line" =~ ^\[38\;5\;238m╰─\[39m[[:space:]]+\[38\;5\;238m─╯\[39m ]]; then
+		output=$(printf "$output" | sed '$d' | sed '$d')
+		output+="\n\n"
+	fi
+
+	printf "$output" > $file
+	sed -i '/./,$!d' $file
+	echo "cat -s '$file'; exec $(tmux_default_command)"
 }
 
 new_window() {
